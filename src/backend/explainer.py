@@ -1,738 +1,780 @@
+from __future__ import annotations
+
 import logging
-from typing import Dict,List,Any,Optional,Tuple
-from dataclasses import dataclass
-from enum import Enum
 import re
+from typing import Dict, List, Any, Optional, Tuple, Union
+from dataclasses import dataclass
+from enum import Enum, auto
+import random
 
-from sympy import latex,sympify,Symbol,diff,integrate,factor,expand,simplify
-from src.backend.classifier import ClassificationResult,ProblemType,MathSubject,DifficultyLevel
-from  src.backend.solver import  StepExplanation
+# Assuming your solver has these structures - adjust as needed
+try:
+    from .solver import StepExplanation
+except ImportError:
+    # Fallback definition if solver isn't available yet
+    @dataclass
+    class StepExplanation:
+        step_num: int
+        expression: str
+        description: str
+        reasoning: str
+        latex_expr: Optional[str] = None
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger=logging.getLogger(__name__)
+from .classifier import ClassificationResult, ProblemType, MathSubject, DifficultyLevel
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 class ExplanationStyle(Enum):
-      BEGINNER="beginner"
-      INTERMEDIATE="intermediate"
-      ADVANCED="advanced"
-      CONVERSATIONAL="conversational"
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+    CONVERSATIONAL = "conversational"
+
 
 @dataclass
 class ConceptExplanation:
-      concept: str
-      definition: str
-      examples: List[str]
-      common_mistakes: List[str]
-      prerequisites: List[str]
-      related_concepts: List[str]
+    concept: str
+    definition: str
+    examples: List[str]
+    common_mistakes: List[str]
+    prerequisites: List[str]
+    related_concepts: List[str]
 
-      def to_dict(self)-> Dict[str,Any]:
-           return {
-               "concept":self.concept,
-                "definition":self.definition,
-                 "examples":self.examples,
-                  "common_mistakes":self.common_mistakes,
-                  "prerequisties": self.prerequisites,
-                   "related_concepts":self.related_concepts
-           }
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "concept": self.concept,
+            "definition": self.definition,
+            "examples": self.examples,
+            "common_mistakes": self.common_mistakes,
+            "prerequisites": self.prerequisites,
+            "related_concepts": self.related_concepts
+        }
+
 
 @dataclass
 class VoiceExplanation:
-      text: str
-      phonetic_math: str
-      pace_markers: List[int]
-      emphasis_words: List[str]
+    text: str
+    phonetic_math: str
+    pace_markers: List[int]
+    emphasis_words: List[str]
 
-      def to_dict(self)->Dict[str,Any]:
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "text": self.text,
+            "phonetic_math": self.phonetic_math,
+            "pace_markers": self.pace_markers,
+            "emphasis_words": self.emphasis_words
+        }
 
-          return {
-              "text":self.text,
-               "phonetic_math":self.phonetic_math,
-                "pace_markers":self.pace_markers,
-                "emphasis_words":self.emphasis_words
-          }
 
 class MathExplainer:
+    """
+    Comprehensive mathematical explanation generator that creates detailed,
+    educational explanations for math problems with multiple styles and formats.
+    """
 
-      def __init__(self):
-          self.concept_database=self._build_concept_database()
-          self.explanation_templates = self._build_explanation_templates()
-          self.voice_patterns = self._build_voice_patterns()
-          logger.info("MathExplainer initialized with concept database")
+    def __init__(self):
+        self.concept_database = self._build_concept_database()
+        self.explanation_templates = self._build_explanation_templates()
+        self.voice_patterns = self._build_voice_patterns()
+        self.difficulty_adjustments = self._build_difficulty_adjustments()
+        logger.info("MathExplainer initialized successfully")
 
-      def explain_solution(self,
-                           problem: str,
-                           classification: ClassificationResult,
-                           solution_steps: List[StepExplanation],
-                           style: ExplanationStyle = ExplanationStyle.INTERMEDIATE) -> Dict[str, Any]:
-          """
-          Generate a comprehensive explanation of the solution process
-          """
-          try:
-              # Generate different types of explanations
-              step_explanations = self._explain_solution_steps(solution_steps, classification, style)
-              concept_explanation = self._explain_underlying_concepts(classification, style)
-              strategy_explanation = self._explain_problem_solving_strategy(classification, solution_steps, style)
-              voice_explanation = self._generate_voice_explanation(problem, solution_steps, style)
+    def explain_solution(self,
+                         problem: str,
+                         classification: ClassificationResult,
+                         solution_steps: List[StepExplanation],
+                         style: ExplanationStyle = ExplanationStyle.INTERMEDIATE,
+                         include_voice: bool = True) -> Dict[str, Any]:
+        """
+        Generate comprehensive explanation for a mathematical solution.
 
-              # Generate adaptive content based on difficulty
-              educational_content = self._generate_educational_content(classification, style)
+        Args:
+            problem: The original problem statement
+            classification: Classification result from MathClassifier
+            solution_steps: Step-by-step solution from MathSolver
+            style: Explanation style for different skill levels
+            include_voice: Whether to generate voice-friendly explanations
 
-              return {
-                  "problem": problem,
-                  "classification": classification.to_dict(),
-                  "step_explanations": step_explanations,
-                  "concept_explanation": concept_explanation.to_dict(),
-                  "strategy_explanation": strategy_explanation,
-                  "voice_explanation": voice_explanation.to_dict(),
-                  "educational_content": educational_content,
-                  "learning_objectives": self._identify_learning_objectives(classification),
-                  "next_steps": self._suggest_next_steps(classification, solution_steps),
-                  "practice_problems": self._generate_practice_problems(classification)
-              }
+        Returns:
+            Complete explanation package with multiple formats
+        """
+        try:
+            logger.info(f"Generating explanation for {classification.problem_type} problem")
 
-          except Exception as e:
-              logger.error(f"Error generating explanation: {str(e)}")
-              return self._generate_fallback_explanation(problem, classification)
+            # Core explanations
+            step_explanations = self._explain_solution_steps(solution_steps, classification, style)
+            concept_explanation = self._explain_underlying_concepts(classification, style)
+            strategy_explanation = self._explain_problem_solving_strategy(classification, solution_steps, style)
 
-      def _explain_solution_steps(self,
-                                  steps: List[StepExplanation],
+            # Educational content
+            educational_content = self._generate_educational_content(classification, style)
+            learning_objectives = self._identify_learning_objectives(classification)
+
+            # Recommendations
+            next_steps = self._suggest_next_steps(classification, solution_steps)
+            practice_problems = self._generate_practice_problems(classification)
+
+            # Voice explanation (if requested)
+            voice_explanation = None
+            if include_voice:
+                voice_explanation = self._generate_voice_explanation(problem, solution_steps, style)
+
+            result = {
+                "problem": problem,
+                "classification": classification.to_dict(),
+                "step_explanations": step_explanations,
+                "concept_explanation": concept_explanation.to_dict(),
+                "strategy_explanation": strategy_explanation,
+                "educational_content": educational_content,
+                "learning_objectives": learning_objectives,
+                "next_steps": next_steps,
+                "practice_problems": practice_problems,
+                "explanation_metadata": {
+                    "style": style.value,
+                    "difficulty_level": str(classification.difficulty),
+                    "subjects": [str(s) for s in classification.subjects],
+                    "confidence": classification.confidence
+                }
+            }
+
+            if voice_explanation:
+                result["voice_explanation"] = voice_explanation.to_dict()
+
+            logger.info("Explanation generated successfully")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error generating explanation: {str(e)}", exc_info=True)
+            return self._generate_fallback_explanation(problem, classification)
+
+    def _explain_solution_steps(self,
+                                steps: List[StepExplanation],
+                                classification: ClassificationResult,
+                                style: ExplanationStyle) -> List[Dict[str, Any]]:
+        """Generate detailed explanations for each solution step."""
+        explained_steps = []
+
+        for i, step in enumerate(steps):
+            explanation = {
+                "step_number": step.step_num,
+                "original_expression": step.expression,
+                "description": step.description,
+                "reasoning": step.reasoning or "Mathematical operation",
+                "enhanced_explanation": self._enhance_step_explanation(step, classification, style),
+                "mathematical_justification": self._explain_mathematical_reasoning(step, classification),
+                "alternative_approaches": self._suggest_alternative_approaches(step, classification),
+                "common_errors": self._identify_common_errors_for_step(step, classification),
+                "visualization_hints": self._generate_visualization_hints(step, classification),
+                "difficulty_notes": self._get_step_difficulty_notes(step, classification, style)
+            }
+
+            # Add LaTeX if available
+            if hasattr(step, 'latex_expr') and step.latex_expr:
+                explanation["latex_expression"] = step.latex_expr
+
+            # Connect to previous step
+            if i > 0:
+                explanation["connection_to_previous"] = self._explain_step_connection(
+                    steps[i - 1], step, classification
+                )
+
+            # Voice-friendly version
+            explanation["voice_friendly"] = self._make_voice_friendly(step, style)
+
+            explained_steps.append(explanation)
+
+        return explained_steps
+
+    def _enhance_step_explanation(self,
+                                  step: StepExplanation,
                                   classification: ClassificationResult,
-                                  style: ExplanationStyle) -> List[Dict[str, Any]]:
-          """Generate detailed explanations for each solution step"""
-          explained_steps = []
+                                  style: ExplanationStyle) -> str:
+        """Enhance step explanation based on style and context."""
+        base_explanation = step.reasoning or step.description
 
-          for i, step in enumerate(steps):
-              explanation = {
-                  "step_number": step.step_num,
-                  "original_description": step.description,
-                  "enhanced_explanation": self._enhance_step_explanation(step, classification, style),
-                  "mathematical_justification": self._explain_mathematical_reasoning(step, classification),
-                  "alternative_approaches": self._suggest_alternative_approaches(step, classification),
-                  "common_errors": self._identify_common_errors_for_step(step, classification),
-                  "visualization_hints": self._generate_visualization_hints(step, classification),
-                  "latex_expression": step.latex_expr,
-                  "voice_friendly": self._make_voice_friendly(step, style)
-              }
+        enhancers = {
+            ExplanationStyle.BEGINNER: self._beginner_enhancement,
+            ExplanationStyle.CONVERSATIONAL: self._conversational_enhancement,
+            ExplanationStyle.ADVANCED: self._advanced_enhancement,
+            ExplanationStyle.INTERMEDIATE: self._intermediate_enhancement
+        }
 
-              # Add context from previous steps
-              if i > 0:
-                  explanation["connection_to_previous"] = self._explain_step_connection(
-                      steps[i - 1], step, classification
-                  )
+        enhancer = enhancers.get(style, self._intermediate_enhancement)
+        return enhancer(base_explanation, step, classification)
 
-              explained_steps.append(explanation)
+    def _beginner_enhancement(self, explanation: str, step: StepExplanation,
+                              classification: ClassificationResult) -> str:
+        """Enhanced explanation for beginners with more detail and encouragement."""
+        enhanced = f"Let's work through this step carefully. {explanation}"
 
-          return explained_steps
+        if step.step_num == 1:
+            enhanced = f"Great! Let's start solving this problem together. {enhanced}"
 
-      def _enhance_step_explanation(self,
-                                    step: StepExplanation,
-                                    classification: ClassificationResult,
-                                    style: ExplanationStyle) -> str:
-          """Enhance a step explanation based on the style and difficulty level"""
+        # Add specific guidance based on operations
+        if "=" in step.expression:
+            enhanced += " Remember, whatever we do to one side of an equation, we must do to the other side to keep it balanced - like a seesaw!"
 
-          base_explanation = step.reasoning or step.description
-          problem_type = classification.problem_type
-          difficulty = classification.difficulty
+        if any(op in step.expression for op in ['+', '-', '*', '/']):
+            enhanced += " We follow the order of operations (PEMDAS/BODMAS) to make sure we get the right answer."
 
-          # Get style-specific enhancements
-          if style == ExplanationStyle.BEGINNER:
-              return self._beginner_enhancement(base_explanation, step, classification)
-          elif style == ExplanationStyle.CONVERSATIONAL:
-              return self._conversational_enhancement(base_explanation, step, classification)
-          elif style == ExplanationStyle.ADVANCED:
-              return self._advanced_enhancement(base_explanation, step, classification)
-          else:  # INTERMEDIATE
-              return self._intermediate_enhancement(base_explanation, step, classification)
+        if "factor" in explanation.lower():
+            enhanced += " Factoring means we're looking for numbers that multiply together to give us our original expression."
 
-      def _beginner_enhancement(self, explanation: str, step: StepExplanation,
-                                classification: ClassificationResult) -> str:
-          """Create beginner-friendly explanations with lots of detail"""
-          enhanced = f"Let me walk you through this step carefully. {explanation}"
+        return enhanced
 
-          # Add encouraging language
-          if step.step_num == 1:
-              enhanced = f"Great! Let's start solving this problem together. {enhanced}"
-
-          # Explain why we're doing each operation
-          if "=" in step.expression:
-              enhanced += " Remember, whatever we do to one side of an equation, we must do to the other side to keep it balanced."
-
-          if any(op in step.expression for op in ['+', '-', '*', '/']):
-              enhanced += " Think of this as following the order of operations (PEMDAS)."
-
-          return enhanced
-
-      def _conversational_enhancement(self, explanation: str, step: StepExplanation,
-                                      classification: ClassificationResult) -> str:
-          """Create conversational, engaging explanations"""
-          conversation_starters = [
-              "Now here's what we're going to do: ",
-              "The next logical step is to ",
-              "Here's where it gets interesting - ",
-              "Let's tackle this by ",
-              "Notice how we can "
-          ]
-
-          starter = conversation_starters[step.step_num % len(conversation_starters)]
-          enhanced = f"{starter}{explanation.lower()}"
-
-          # Add rhetorical questions
-          if classification.problem_type == ProblemType.EQUATION:
-              enhanced += " Can you see how this gets us closer to isolating our variable?"
-          elif classification.problem_type == ProblemType.DERIVATIVE:
-              enhanced += " Notice how the power rule makes this straightforward?"
-
-          return enhanced
-
-      def _advanced_enhancement(self, explanation: str, step: StepExplanation,
-                                classification: ClassificationResult) -> str:
-          """Create advanced explanations with mathematical rigor"""
-          enhanced = explanation
-
-          # Add theoretical context
-          if classification.problem_type == ProblemType.DERIVATIVE:
-              enhanced += " This application of the derivative demonstrates the fundamental theorem connecting rates of change to slopes of tangent lines."
-          elif classification.problem_type == ProblemType.EQUATION:
-              enhanced += " This transformation preserves the equivalence relation while simplifying the solution set."
-
-          return enhanced
-
-      def _intermediate_enhancement(self, explanation: str, step: StepExplanation,
+    def _conversational_enhancement(self, explanation: str, step: StepExplanation,
                                     classification: ClassificationResult) -> str:
-          """Create balanced explanations for intermediate learners"""
-          enhanced = explanation
-
-          # Add method identification
-          if "factor" in explanation.lower():
-              enhanced += " This uses factoring techniques to break down complex expressions."
-          elif "substitute" in explanation.lower():
-              enhanced += " Substitution is a powerful technique for simplification."
-
-          return enhanced
-
-      def _explain_mathematical_reasoning(self, step: StepExplanation,
-                                          classification: ClassificationResult) -> str:
-          """Explain the mathematical principles behind each step"""
-
-          reasoning_map = {
-              ProblemType.EQUATION: {
-                  "solve": "We use the properties of equality: adding, subtracting, multiplying, or dividing both sides by the same value maintains the equation's truth.",
-                  "factor": "Factoring utilizes the distributive property in reverse: if ab = 0, then a = 0 or b = 0.",
-                  "substitute": "Substitution replaces variables with equivalent expressions to simplify or solve."
-              },
-              ProblemType.DERIVATIVE: {
-                  "power rule": "The power rule states that d/dx(x^n) = n·x^(n-1), derived from the definition of limits.",
-                  "chain rule": "The chain rule handles composite functions: d/dx[f(g(x))] = f'(g(x))·g'(x).",
-                  "product rule": "For products of functions: d/dx[f(x)g(x)] = f'(x)g(x) + f(x)g'(x)."
-              },
-              ProblemType.WORD_PROBLEM: {
-                  "identify": "Problem-solving begins with identifying known and unknown quantities.",
-                  "translate": "Mathematical modeling translates word problems into equations or expressions.",
-                  "calculate": "Systematic calculation follows mathematical order of operations."
-              }
-          }
-
-          problem_type = classification.problem_type
-          step_content = step.description.lower()
-
-          # Find relevant reasoning
-          if problem_type in reasoning_map:
-              for key, reasoning in reasoning_map[problem_type].items():
-                  if key in step_content:
-                      return reasoning
-
-          return "This step follows standard mathematical procedures to progress toward the solution."
-
-      def _explain_underlying_concepts(self, classification: ClassificationResult,
-                                       style: ExplanationStyle) -> ConceptExplanation:
-          """Explain the fundamental concepts involved in the problem"""
-
-          primary_subject = list(classification.subjects)[0] if classification.subjects else MathSubject.ALGEBRA
-          problem_type = classification.problem_type
-
-          concept_key = f"{primary_subject.name}_{problem_type.value}"
-
-          if concept_key in self.concept_database:
-              concept = self.concept_database[concept_key]
-          else:
-              # Generate dynamic concept explanation
-              concept = self._generate_dynamic_concept_explanation(classification)
-
-          # Adapt to style
-          if style == ExplanationStyle.BEGINNER:
-              concept.definition = self._simplify_definition(concept.definition)
-              concept.examples = concept.examples[:2]  # Fewer examples for beginners
-
-          return concept
-
-      def _explain_problem_solving_strategy(self, classification: ClassificationResult,
-                                            steps: List[StepExplanation],
-                                            style: ExplanationStyle) -> Dict[str, Any]:
-          """Explain the overall problem-solving strategy used"""
-
-          strategy_explanations = {
-              ProblemType.EQUATION: {
-                  "strategy_name": "Equation Solving Strategy",
-                  "overview": "Isolate the variable by performing inverse operations in reverse order of operations.",
-                  "key_principles": [
-                      "Maintain equation balance",
-                      "Use inverse operations",
-                      "Simplify step by step"
-                  ],
-                  "when_to_use": "When you have an equation and need to find the value(s) of unknown variable(s)."
-              },
-              ProblemType.DERIVATIVE: {
-                  "strategy_name": "Differentiation Strategy",
-                  "overview": "Apply differentiation rules systematically to find the rate of change.",
-                  "key_principles": [
-                      "Identify the function type",
-                      "Apply appropriate differentiation rules",
-                      "Simplify the result"
-                  ],
-                  "when_to_use": "When you need to find slopes, rates of change, or optimization points."
-              },
-              ProblemType.WORD_PROBLEM: {
-                  "strategy_name": "Word Problem Strategy",
-                  "overview": "Translate the verbal description into mathematical language, then solve.",
-                  "key_principles": [
-                      "Identify what you're looking for",
-                      "Define variables for unknowns",
-                      "Translate relationships into equations",
-                      "Solve and interpret the result"
-                  ],
-                  "when_to_use": "When dealing with real-world applications of mathematical concepts."
-              }
-          }
-
-          strategy = strategy_explanations.get(classification.problem_type, {
-              "strategy_name": "General Problem-Solving Strategy",
-              "overview": "Break down the problem into manageable steps and solve systematically.",
-              "key_principles": ["Understand the problem", "Plan your approach", "Execute step by step",
-                                 "Check your answer"],
-              "when_to_use": "For any mathematical problem requiring systematic solution."
-          })
-
-          # Add step-by-step breakdown
-          strategy["step_breakdown"] = self._analyze_solution_pattern(steps)
-          strategy["difficulty_adaptations"] = self._get_difficulty_adaptations(classification)
-
-          return strategy
-
-      def _generate_voice_explanation(self, problem: str, steps: List[StepExplanation],
-                                      style: ExplanationStyle) -> VoiceExplanation:
-          """Generate voice-optimized explanation"""
-
-          # Create voice-friendly text
-          voice_text_parts = [
-              f"Let's solve the problem: {self._make_math_speakable(problem)}"
-          ]
-
-          for step in steps:
-              step_text = f"Step {step.step_num}: {step.description}. "
-              step_text += f"We have: {self._make_math_speakable(step.expression)}. "
-              if step.reasoning:
-                  step_text += f"This is because {step.reasoning.lower()}"
-              voice_text_parts.append(step_text)
-
-          full_text = " ".join(voice_text_parts)
-
-          # Identify phonetic math expressions
-          phonetic_math = self._convert_to_phonetic_math(problem, steps)
-
-          # Mark pause positions (after each step)
-          pace_markers = []
-          current_pos = 0
-          for part in voice_text_parts:
-              current_pos += len(part)
-              pace_markers.append(current_pos)
-
-          # Identify emphasis words
-          emphasis_words = self._identify_emphasis_words(steps)
-
-          return VoiceExplanation(
-              text=full_text,
-              phonetic_math=phonetic_math,
-              pace_markers=pace_markers,
-              emphasis_words=emphasis_words
-          )
-
-      def _make_math_speakable(self, expression: str) -> str:
-          """Convert mathematical expressions to speech-friendly format"""
-          speakable = expression
-
-          # Common replacements for better speech
-          replacements = {
-              '^2': ' squared',
-              '^3': ' cubed',
-              '^': ' to the power of ',
-              '*': ' times ',
-              '/': ' divided by ',
-              '=': ' equals ',
-              '+': ' plus ',
-              '-': ' minus ',
-              'sqrt': ' square root of ',
-              'sin': ' sine of ',
-              'cos': ' cosine of ',
-              'tan': ' tangent of ',
-              'log': ' log of ',
-              'ln': ' natural log of ',
-              'pi': ' pi ',
-              '(': ' open parenthesis ',
-              ')': ' close parenthesis ',
-              'x': ' x ',
-              'y': ' y '
-          }
-
-          for symbol, spoken in replacements.items():
-              speakable = speakable.replace(symbol, spoken)
-
-          # Clean up multiple spaces
-          speakable = re.sub(r'\s+', ' ', speakable).strip()
-
-          return speakable
-
-      def _convert_to_phonetic_math(self, problem: str, steps: List[StepExplanation]) -> str:
-          """Convert all math expressions to phonetic equivalents"""
-          phonetic_parts = [f"Problem: {self._make_math_speakable(problem)}"]
-
-          for step in steps:
-              phonetic_parts.append(
-                  f"Step {step.step_num}: {self._make_math_speakable(step.expression)}"
-              )
-
-          return " | ".join(phonetic_parts)
-
-      def _identify_emphasis_words(self, steps: List[StepExplanation]) -> List[str]:
-          """Identify words that should be emphasized in speech"""
-          emphasis_words = []
-
-          for step in steps:
-              # Mathematical operations to emphasize
-              if any(word in step.description.lower() for word in ['factor', 'solve', 'substitute']):
-                  emphasis_words.extend(['factor', 'solve', 'substitute'])
-
-              # Important mathematical terms
-              important_terms = ['derivative', 'integral', 'equation', 'solution', 'answer']
-              for term in important_terms:
-                  if term in step.description.lower():
-                      emphasis_words.append(term)
-
-          return list(set(emphasis_words))  # Remove duplicates
-
-      def _generate_educational_content(self, classification: ClassificationResult,
-                                        style: ExplanationStyle) -> Dict[str, Any]:
-          """Generate additional educational content"""
-
-          return {
-              "key_concepts": self._identify_key_concepts(classification),
-              "prerequisite_knowledge": self._identify_prerequisites(classification),
-              "common_misconceptions": self._get_common_misconceptions(classification),
-              "real_world_applications": self._get_real_world_applications(classification),
-              "practice_tips": self._generate_practice_tips(classification, style),
-              "memory_aids": self._generate_memory_aids(classification),
-              "visual_learning_tips": self._generate_visual_tips(classification)
-          }
-
-      def _identify_learning_objectives(self, classification: ClassificationResult) -> List[str]:
-          """Identify what students should learn from this problem"""
-
-          objectives_map = {
-              ProblemType.EQUATION: [
-                  "Understand equation-solving principles",
-                  "Apply inverse operations systematically",
-                  "Verify solutions by substitution"
-              ],
-              ProblemType.DERIVATIVE: [
-                  "Master differentiation rules",
-                  "Understand the concept of instantaneous rate of change",
-                  "Apply derivatives to real-world problems"
-              ],
-              ProblemType.WORD_PROBLEM: [
-                  "Translate word problems into mathematical language",
-                  "Identify relevant and irrelevant information",
-                  "Interpret mathematical solutions in context"
-              ]
-          }
-
-          base_objectives = objectives_map.get(classification.problem_type, [
-              "Apply mathematical reasoning",
-              "Follow systematic problem-solving steps",
-              "Check and verify answers"
-          ])
-
-          # Add subject-specific objectives
-          if MathSubject.CALCULUS in classification.subjects:
-              base_objectives.append("Connect calculus concepts to geometric interpretations")
-          if MathSubject.GEOMETRY in classification.subjects:
-              base_objectives.append("Visualize geometric relationships")
-
-          return base_objectives
-
-      def _suggest_next_steps(self, classification: ClassificationResult,
-                              solution_steps: List[StepExplanation]) -> List[Dict[str, str]]:
-          """Suggest what the student should study or practice next"""
-
-          suggestions = []
-
-          if classification.problem_type == ProblemType.EQUATION:
-              if classification.difficulty == DifficultyLevel.HIGH_SCHOOL:
-                  suggestions.extend([
-                      {
-                          "topic": "Quadratic Formula",
-                          "description": "Learn to solve quadratic equations that don't factor easily",
-                          "difficulty": "Next Level"
-                      },
-                      {
-                          "topic": "Systems of Equations",
-                          "description": "Solve problems involving multiple equations simultaneously",
-                          "difficulty": "Same Level"
-                      }
-                  ])
-
-          elif classification.problem_type == ProblemType.DERIVATIVE:
-              suggestions.extend([
-                  {
-                      "topic": "Chain Rule",
-                      "description": "Handle more complex composite functions",
-                      "difficulty": "Next Level"
-                  },
-                  {
-                      "topic": "Applications of Derivatives",
-                      "description": "Use derivatives to solve optimization problems",
-                      "difficulty": "Application"
-                  }
-              ])
-
-          # Add general suggestions based on performance indicators
-          suggestions.append({
-              "topic": "Practice Similar Problems",
-              "description": f"Work through more {classification.problem_type.value.lower()} problems",
-              "difficulty": "Reinforcement"
-          })
-
-          return suggestions[:5]  # Limit to top 5 suggestions
-
-      def _generate_practice_problems(self, classification: ClassificationResult) -> List[Dict[str, str]]:
-          """Generate similar practice problems"""
-
-          practice_problems = []
-          problem_type = classification.problem_type
-          difficulty = classification.difficulty
-
-          if problem_type == ProblemType.EQUATION:
-              if difficulty in [DifficultyLevel.HIGH_SCHOOL, DifficultyLevel.INTERMEDIATE]:
-                  practice_problems.extend([
-                      {"problem": "2x + 7 = 15", "difficulty": "Easy"},
-                      {"problem": "3x² - 12x + 9 = 0", "difficulty": "Medium"},
-                      {"problem": "x² + 4x - 5 = 0", "difficulty": "Medium"}
-                  ])
-
-          elif problem_type == ProblemType.DERIVATIVE:
-              practice_problems.extend([
-                  {"problem": "Find d/dx(2x³ + 5x² - 3x + 1)", "difficulty": "Easy"},
-                  {"problem": "Find d/dx(sin(x²))", "difficulty": "Hard"},
-                  {"problem": "Find d/dx(x·ln(x))", "difficulty": "Medium"}
-              ])
-
-          elif problem_type == ProblemType.WORD_PROBLEM:
-              if MathSubject.GEOMETRY in classification.subjects:
-                  practice_problems.extend([
-                      {"problem": "Find the area of a triangle with base 8 and height 6", "difficulty": "Easy"},
-                      {"problem": "A rectangle has perimeter 24. If length is twice the width, find dimensions",
-                       "difficulty": "Medium"}
-                  ])
-
-          return practice_problems[:4]  # Limit to 4 practice problems
-
-          # Helper methods for building databases and templates
-
-      def _build_concept_database(self) -> Dict[str, ConceptExplanation]:
-          """Build a database of mathematical concept explanations"""
-          return {
-              "ALGEBRA_Equation": ConceptExplanation(
-                  concept="Algebraic Equations",
-                  definition="An equation is a mathematical statement that two expressions are equal, typically containing one or more variables.",
-                  examples=["2x + 3 = 7", "x² - 4 = 0", "3x + 2y = 10"],
-                  common_mistakes=[
-                      "Not performing the same operation on both sides",
-                      "Making sign errors when moving terms",
-                      "Forgetting to check solutions"
-                  ],
-                  prerequisites=["Basic arithmetic", "Understanding of variables", "Order of operations"],
-                  related_concepts=["Inequalities", "Systems of equations", "Functions"]
-              ),
-              "CALCULUS_Derivative": ConceptExplanation(
-                  concept="Derivatives",
-                  definition="The derivative represents the instantaneous rate of change of a function at any given point.",
-                  examples=["d/dx(x²) = 2x", "d/dx(sin x) = cos x", "d/dx(eˣ) = eˣ"],
-                  common_mistakes=[
-                      "Forgetting the chain rule for composite functions",
-                      "Incorrectly applying the power rule",
-                      "Not simplifying the final answer"
-                  ],
-                  prerequisites=["Functions", "Limits", "Basic algebra"],
-                  related_concepts=["Integrals", "Rate of change", "Optimization"]
-              ),
-              "GEOMETRY_Word Problem": ConceptExplanation(
-                  concept="Geometric Word Problems",
-                  definition="Real-world problems that require geometric formulas and spatial reasoning to solve.",
-                  examples=["Area problems", "Volume calculations", "Distance and angle problems"],
-                  common_mistakes=[
-                      "Using wrong formula",
-                      "Forgetting to include units",
-                      "Misreading the problem setup"
-                  ],
-                  prerequisites=["Basic geometry formulas", "Unit conversions", "Problem-solving strategies"],
-                  related_concepts=["Measurement", "Spatial visualization", "Applied mathematics"]
-              )
-          }
-
-      def _build_explanation_templates(self) -> Dict[str, str]:
-          """Build templates for different types of explanations"""
-          return {
-              "step_intro": "In this step, we {action} because {reason}.",
-              "beginner_encouragement": "Great work! You're making good progress.",
-              "concept_connection": "This connects to {concept} which you learned about {context}.",
-              "error_prevention": "Watch out for {mistake} - a common error here is {description}."
-          }
-
-      def _build_voice_patterns(self) -> Dict[str, List[str]]:
-          """Build patterns for voice explanations"""
-          return {
-              "transitions": [
-                  "Next, we'll",
-                  "Now let's",
-                  "The following step is to",
-                  "Moving forward, we"
-              ],
-              "explanations": [
-                  "This works because",
-                  "The reason for this is",
-                  "We do this in order to",
-                  "This step helps us"
-              ],
-              "encouragement": [
-                  "You're doing great!",
-                  "Nice work so far!",
-                  "Keep going!",
-                  "Excellent progress!"
-              ]
-          }
-
-      def _generate_fallback_explanation(self, problem: str,
-                                         classification: ClassificationResult) -> Dict[str, Any]:
-          """Generate a basic explanation when detailed analysis fails"""
-          return {
-              "problem": problem,
-              "classification": classification.to_dict(),
-              "basic_explanation": f"This is a {classification.problem_type.value} problem in {list(classification.subjects)[0] if classification.subjects else 'mathematics'}.",
-              "error": "Detailed explanation generation failed",
-              "fallback_advice": "Please try rephrasing your problem or contact support for help."
-          }
-
-          # Additional helper methods (abbreviated for space)
-
-      def _generate_dynamic_concept_explanation(self, classification: ClassificationResult) -> ConceptExplanation:
-          """Generate concept explanation when not in database"""
-          return ConceptExplanation(
-              concept=f"{classification.problem_type.value}",
-              definition=f"A mathematical problem involving {classification.problem_type.value.lower()}.",
-              examples=[],
-              common_mistakes=["Not following systematic approach", "Computational errors"],
-              prerequisites=["Basic mathematical knowledge"],
-              related_concepts=[]
-          )
-
-      def _simplify_definition(self, definition: str) -> str:
-          """Simplify definition for beginners"""
-          # Replace complex terms with simpler ones
-          simplifications = {
-              "instantaneous": "immediate",
-              "composite": "combined",
-              "systematic": "step-by-step"
-          }
-
-          simplified = definition
-          for complex_term, simple_term in simplifications.items():
-              simplified = simplified.replace(complex_term, simple_term)
-
-          return simplified
-
-      def _analyze_solution_pattern(self, steps: List[StepExplanation]) -> List[str]:
-          """Analyze the pattern of solution steps"""
-          patterns = []
-
-          for step in steps:
-              if "identify" in step.description.lower():
-                  patterns.append("Problem Analysis")
-              elif "substitute" in step.description.lower():
-                  patterns.append("Substitution")
-              elif "solve" in step.description.lower():
-                  patterns.append("Solution Finding")
-              elif "simplify" in step.description.lower():
-                  patterns.append("Simplification")
-              else:
-                  patterns.append("Mathematical Operation")
-
-          return patterns
-
-      def _get_difficulty_adaptations(self, classification: ClassificationResult) -> List[str]:
-          """Get adaptations needed for different difficulty levels"""
-          adaptations = []
-
-          if classification.difficulty == DifficultyLevel.ELEMENTARY:
-              adaptations.extend([
-                  "Use more visual aids",
-                  "Break down into smaller steps",
-                  "Provide more examples"
-              ])
-          elif classification.difficulty == DifficultyLevel.ADVANCED:
-              adaptations.extend([
-                  "Include theoretical background",
-                  "Discuss alternative methods",
-                  "Connect to advanced concepts"
-              ])
-
-          return adaptations
-
-      def _identify_key_concepts(self, classification: ClassificationResult) -> List[str]:
-          """Identify key concepts for this problem type"""
-          concept_map = {
-              ProblemType.EQUATION: ["Variables", "Equality", "Inverse operations"],
-              ProblemType.DERIVATIVE: ["Rate of change", "Limits", "Function behavior"],
-              ProblemType.WORD_PROBLEM: ["Problem translation", "Mathematical modeling"]
-          }
-
-          return concept_map.get(classification.problem_type, ["Mathematical reasoning"])
-
-      def _identify_prerequisites(self, classification: ClassificationResult) -> List[str]:
-          prereq_map = {
-              ProblemType.EQUATION: ["Basic algebra", "Order of operations"],
-              ProblemType.DERIVATIVE: ["Functions", "Limits", "Algebra"],
-              ProblemType.WORD_PROBLEM: ["Reading comprehension", "Basic math concepts"]
-          }
-
-          return prereq_map.get(classification.problem_type, ["Basic mathematics"])
-
-      def _get_common_misconceptions(self, classification: ClassificationResult) -> List[str]:
-          misconception_map = {
-              ProblemType.EQUATION: [
-                  "Thinking you can only add/subtract to solve equations",
-                  "Forgetting to check solutions",
-                  "Confusing = with ≈"
-              ],
-              ProblemType.DERIVATIVE: [
-                  "Thinking derivatives are just slopes",
-                  "Forgetting the chain rule",
-                  "Confusing d/dx with Δx"
-              ]
-          }
-
-          return misconception_map.get(classification.problem_type, [])
-
-      def _get_real_world_applications(self, classification: ClassificationResult) -> List[str]:
-          application_map = {
-              ProblemType.EQUATION: ["Engineering calculations", "Financial planning", "Recipe scaling"],
-              ProblemType.DERIVATIVE:[]
+        """Conversational style explanation with engaging language."""
+        starters = [
+            "Now here's what we're going to do: ",
+            "The next logical step is to ",
+            "Here's where it gets interesting - ",
+            "Let's tackle this by ",
+            "Notice how we can "
+        ]
+
+        starter = starters[step.step_num % len(starters)]
+        enhanced = f"{starter}{explanation.lower()}"
+
+        # Add engaging follow-ups
+        if classification.problem_type == ProblemType.EQUATION:
+            enhanced += " Can you see how this gets us closer to isolating our variable?"
+        elif classification.problem_type == ProblemType.DERIVATIVE:
+            enhanced += " Notice how the derivative rules make this straightforward?"
+        elif "solve" in explanation.lower():
+            enhanced += " We're making great progress toward our final answer!"
+
+        return enhanced
+
+    def _advanced_enhancement(self, explanation: str, step: StepExplanation,
+                              classification: ClassificationResult) -> str:
+        """Advanced explanation with theoretical context."""
+        enhanced = explanation
+
+        # Add theoretical context
+        if classification.problem_type == ProblemType.DERIVATIVE:
+            enhanced += " This application demonstrates the fundamental theorem connecting instantaneous rates of change to function behavior."
+        elif classification.problem_type == ProblemType.EQUATION:
+            enhanced += " This transformation preserves the solution set while simplifying the algebraic structure."
+        elif "integral" in explanation.lower():
+            enhanced += " This integration technique leverages the fundamental theorem of calculus."
+
+        # Add connections to broader mathematical concepts
+        if MathSubject.CALCULUS in classification.subjects:
+            enhanced += " This step exemplifies the systematic approach characteristic of rigorous mathematical analysis."
+
+        return enhanced
+
+    def _intermediate_enhancement(self, explanation: str, step: StepExplanation,
+                                  classification: ClassificationResult) -> str:
+        """Intermediate level explanation with moderate detail."""
+        enhanced = explanation
+
+        # Add helpful context without overwhelming detail
+        if "factor" in explanation.lower():
+            enhanced += " This factoring technique helps us break down complex expressions into simpler parts."
+        elif "substitute" in explanation.lower():
+            enhanced += " Substitution is a powerful technique that simplifies our work."
+        elif "solve" in explanation.lower():
+            enhanced += " We're using algebraic manipulation to isolate the variable."
+
+        return enhanced
+
+    def _explain_mathematical_reasoning(self, step: StepExplanation,
+                                        classification: ClassificationResult) -> str:
+        """Provide mathematical justification for the step."""
+        reasoning_database = {
+            ProblemType.EQUATION: {
+                "solve": "We use the properties of equality: adding, subtracting, multiplying, or dividing both sides by the same non-zero value maintains the equation's validity.",
+                "factor": "Factoring utilizes the zero product property: if ab = 0, then either a = 0 or b = 0 (or both).",
+                "substitute": "Substitution allows us to replace variables with equivalent expressions, maintaining mathematical equivalence.",
+                "simplify": "Algebraic simplification combines like terms and reduces expressions to their most compact form.",
+                "expand": "Expansion uses the distributive property: a(b + c) = ab + ac."
+            },
+            ProblemType.DERIVATIVE: {
+                "power rule": "The power rule states: d/dx(xⁿ) = n·xⁿ⁻¹, derived from the limit definition of derivatives.",
+                "chain rule": "The chain rule handles composite functions: d/dx[f(g(x))] = f'(g(x))·g'(x).",
+                "product rule": "For products: d/dx[f(x)g(x)] = f'(x)g(x) + f(x)g'(x).",
+                "quotient rule": "For quotients: d/dx[f(x)/g(x)] = [f'(x)g(x) - f(x)g'(x)]/[g(x)]²."
+            },
+            ProblemType.INTEGRAL: {
+                "antiderivative": "Integration finds the antiderivative - the function whose derivative gives our integrand.",
+                "substitution": "u-substitution simplifies integrals by changing variables to a more manageable form.",
+                "parts": "Integration by parts uses: ∫u dv = uv - ∫v du."
+            },
+            ProblemType.WORD_PROBLEM: {
+                "identify": "Problem analysis begins with identifying known quantities, unknown variables, and relationships.",
+                "translate": "Mathematical modeling translates word descriptions into equations or expressions.",
+                "interpret": "Solution interpretation requires understanding the mathematical result in the original context."
+            }
+        }
+
+        problem_type = classification.problem_type
+        step_content = step.description.lower()
+
+        if problem_type in reasoning_database:
+            for keyword, reasoning in reasoning_database[problem_type].items():
+                if keyword in step_content:
+                    return reasoning
+
+        return "This step follows standard mathematical procedures to progress systematically toward the solution."
+
+    def _suggest_alternative_approaches(self, step: StepExplanation,
+                                        classification: ClassificationResult) -> List[str]:
+        """Suggest alternative methods for solving this step."""
+        alternatives = []
+        step_desc = step.description.lower()
+
+        if classification.problem_type == ProblemType.EQUATION:
+            if "factor" in step_desc:
+                alternatives.extend([
+                    "Use the quadratic formula instead of factoring",
+                    "Complete the square method",
+                    "Graphical solution by finding x-intercepts"
+                ])
+            elif "solve" in step_desc and "quadratic" in step_desc:
+                alternatives.extend([
+                    "Factoring method (if expression factors nicely)",
+                    "Completing the square",
+                    "Graphical method"
+                ])
+
+        elif classification.problem_type == ProblemType.DERIVATIVE:
+            if "chain rule" in step_desc:
+                alternatives.append("Break into intermediate steps for clarity")
+            elif "product rule" in step_desc:
+                alternatives.append("Expand first, then differentiate term by term")
+
+        elif classification.problem_type == ProblemType.INTEGRAL:
+            if "substitution" in step_desc:
+                alternatives.extend([
+                    "Integration by parts",
+                    "Partial fractions (if applicable)"
+                ])
+
+        return alternatives[:3]  # Limit to most relevant alternatives
+
+    def _identify_common_errors_for_step(self, step: StepExplanation,
+                                         classification: ClassificationResult) -> List[str]:
+        """Identify common mistakes students make at this step."""
+        errors = []
+        step_desc = step.description.lower()
+        expression = step.expression
+
+        # General errors
+        if "=" in expression:
+            errors.append("Forgetting to perform the same operation on both sides of the equation")
+
+        if any(op in expression for op in ["^", "**"]):
+            errors.append("Incorrectly applying exponent rules (e.g., (x²)³ ≠ x⁵)")
+
+        if "factor" in step_desc:
+            errors.extend([
+                "Not checking if the factorization is correct by expanding",
+                "Missing the greatest common factor",
+                "Sign errors when factoring"
+            ])
+
+        # Subject-specific errors
+        if classification.problem_type == ProblemType.DERIVATIVE:
+            errors.extend([
+                "Forgetting to apply the chain rule to composite functions",
+                "Incorrectly differentiating constants",
+                "Sign errors with trigonometric derivatives"
+            ])
+
+        elif classification.problem_type == ProblemType.INTEGRAL:
+            errors.extend([
+                "Forgetting the constant of integration (+C)",
+                "Incorrect u-substitution",
+                "Sign errors in integration by parts"
+            ])
+
+        return errors[:4]  # Limit to most important errors
+
+    def _generate_visualization_hints(self, step: StepExplanation,
+                                      classification: ClassificationResult) -> List[str]:
+        """Generate hints for visualizing this step."""
+        hints = []
+
+        if classification.problem_type == ProblemType.EQUATION:
+            hints.extend([
+                "Think of an equation as a balance scale - what you do to one side, do to the other",
+                "Visualize 'undoing' operations in reverse order"
+            ])
+
+        elif classification.problem_type == ProblemType.DERIVATIVE:
+            hints.extend([
+                "Picture the slope of the tangent line at any point on the curve",
+                "Think about how the function is changing at that instant"
+            ])
+
+        elif classification.problem_type == ProblemType.INTEGRAL:
+            hints.extend([
+                "Visualize the area under the curve",
+                "Think of integration as 'accumulating' small pieces"
+            ])
+
+        if MathSubject.GEOMETRY in classification.subjects:
+            hints.append("Draw a diagram to visualize the geometric relationships")
+
+        return hints[:3]
+
+    def _get_step_difficulty_notes(self, step: StepExplanation,
+                                   classification: ClassificationResult,
+                                   style: ExplanationStyle) -> List[str]:
+        """Provide difficulty-specific notes for the step."""
+        notes = []
+
+        if classification.difficulty == DifficultyLevel.ELEMENTARY:
+            notes.extend([
+                "Take your time with this step",
+                "Double-check your arithmetic",
+                "It's okay to use a calculator for complex numbers"
+            ])
+        elif classification.difficulty == DifficultyLevel.GRADUATE:
+            notes.extend([
+                "This step requires careful attention to mathematical rigor",
+                "Consider the theoretical implications",
+                "Multiple solution paths may exist"
+            ])
+
+        return notes
+
+    def _make_voice_friendly(self, step: StepExplanation, style: ExplanationStyle) -> str:
+        """Convert mathematical notation to voice-friendly format."""
+        voice_text = step.description
+
+        # Mathematical symbol replacements
+        replacements = {
+            '^2': ' squared',
+            '^3': ' cubed',
+            '^': ' to the power of ',
+            '*': ' times ',
+            '/': ' divided by ',
+            '=': ' equals ',
+            '+': ' plus ',
+            '-': ' minus ',
+            'sqrt': ' square root of ',
+            'sin': ' sine of ',
+            'cos': ' cosine of ',
+            'tan': ' tangent of ',
+            'log': ' logarithm of ',
+            'ln': ' natural logarithm of ',
+            'pi': ' pi ',
+            'e': ' e ',
+            '(': ' open parenthesis ',
+            ')': ' close parenthesis ',
+            '[': ' open bracket ',
+            ']': ' close bracket '
+        }
+
+        for symbol, spoken in replacements.items():
+            voice_text = voice_text.replace(symbol, spoken)
+
+        # Clean up extra spaces
+        voice_text = re.sub(r'\s+', ' ', voice_text).strip()
+
+        # Add pacing for complex expressions
+        if len(voice_text) > 50:
+            voice_text = voice_text.replace(',', ', pause,')
+
+        return voice_text
+
+    def _explain_step_connection(self, prev_step: StepExplanation,
+                                 current_step: StepExplanation,
+                                 classification: ClassificationResult) -> str:
+        """Explain how the current step builds on the previous step."""
+        connection_templates = [
+            "Building on our previous result where we {prev_action}, we now {current_action}",
+            "Since we {prev_action}, our next logical step is to {current_action}",
+            "The previous step gave us {prev_result}, so now we can {current_action}",
+            "Having {prev_action}, we proceed by {current_action}"
+        ]
+
+        # Extract key actions from step descriptions
+        prev_action = self._extract_key_action(prev_step.description)
+        current_action = self._extract_key_action(current_step.description)
+
+        template = connection_templates[0]
+        return template.format(prev_action=prev_action, current_action=current_action)
+
+    def _extract_key_action(self, description: str) -> str:
+        """Extract the key mathematical action from a step description."""
+        description = description.lower()
+
+        if "solve" in description:
+            return "solved for the variable"
+        elif "factor" in description:
+            return "factored the expression"
+        elif "expand" in description:
+            return "expanded the expression"
+        elif "simplify" in description:
+            return "simplified the expression"
+        elif "substitute" in description:
+            return "made a substitution"
+        elif "differentiate" in description:
+            return "found the derivative"
+        elif "integrate" in description:
+            return "evaluated the integral"
+        else:
+            return "performed the operation"
+
+    def _explain_underlying_concepts(self, classification: ClassificationResult,
+                                     style: ExplanationStyle) -> ConceptExplanation:
+        """Explain the fundamental concepts underlying this problem."""
+        # Get primary subject and problem type
+        primary_subject = list(classification.subjects)[0] if classification.subjects else MathSubject.ALGEBRA
+        problem_type = classification.problem_type
+
+        # Look up concept in database
+        concept_key = f"{primary_subject.name}_{problem_type.value.replace(' ', '_')}"
+
+        if concept_key in self.concept_database:
+            concept = self.concept_database[concept_key]
+        else:
+            concept = self._generate_dynamic_concept_explanation(classification)
+
+        # Adapt to style
+        if style == ExplanationStyle.BEGINNER:
+            concept.definition = self._simplify_definition(concept.definition)
+            concept.examples = concept.examples[:2]  # Fewer examples for beginners
+
+        return concept
+
+    def _explain_problem_solving_strategy(self, classification: ClassificationResult,
+                                          steps: List[StepExplanation],
+                                          style: ExplanationStyle) -> Dict[str, Any]:
+        """Explain the overall strategy used to solve this problem."""
+
+        strategy_database = {
+            ProblemType.EQUATION: {
+                "strategy_name": "Algebraic Equation Solving",
+                "overview": "Systematically isolate the variable using inverse operations while maintaining equation balance.",
+                "key_principles": [
+                    "Maintain equation balance (what you do to one side, do to the other)",
+                    "Use inverse operations to 'undo' what's been done to the variable",
+                    "Work in reverse order of operations (PEMDAS backwards)",
+                    "Simplify at each step to avoid errors"
+                ],
+                "when_to_use": "When you have an equation with one or more unknowns that need to be solved.",
+                "success_indicators": [
+                    "Variable is isolated on one side",
+                    "Solution can be verified by substitution",
+                    "All algebraic steps are valid"
+                ]
+            },
+            ProblemType.DERIVATIVE: {
+                "strategy_name": "Systematic Differentiation",
+                "overview": "Apply differentiation rules in the correct order to find the rate of change function.",
+                "key_principles": [
+                    "Identify the type of function (polynomial, trigonometric, exponential, etc.)",
+                    "Apply basic rules (power rule, product rule, quotient rule, chain rule)",
+                    "Work from outside to inside for composite functions",
+                    "Simplify the final result"
+                ],
+                "when_to_use": "When finding slopes, rates of change, or critical points of functions.",
+                "success_indicators": [
+                    "All terms are properly differentiated",
+                    "Result is simplified",
+                    "Units make sense (if applicable)"
+                ]
+            },
+            ProblemType.INTEGRAL: {
+                "strategy_name": "Integration Strategy",
+                "overview": "Find the antiderivative using appropriate integration techniques.",
+                "key_principles": [
+                    "Identify the type of integrand",
+                    "Choose appropriate technique (substitution, parts, partial fractions)",
+                    "Don't forget the constant of integration (+C)",
+                    "Verify by differentiating the result"
+                ],
+                "when_to_use": "When finding areas, accumulated quantities, or antiderivatives.",
+                "success_indicators": [
+                    "Integration technique is correctly applied",
+                    "Constant of integration is included",
+                    "Result can be verified by differentiation"
+                ]
+            },
+            ProblemType.WORD_PROBLEM: {
+                "strategy_name": "Mathematical Modeling",
+                "overview": "Translate real-world problems into mathematical language, solve, and interpret results.",
+                "key_principles": [
+                    "Identify what you're looking for (the unknown)",
+                    "Define variables for unknown quantities",
+                    "Translate relationships into mathematical expressions",
+                    "Solve the mathematical problem",
+                    "Interpret the result in the original context"
+                ],
+                "when_to_use": "When mathematical concepts need to be applied to real-world situations.",
+                "success_indicators": [
+                    "All relevant information is used",
+                    "Mathematical model accurately represents the situation",
+                    "Solution makes sense in context"
+                ]
+            }
+        }
+
+        # Get base strategy
+        base_strategy = strategy_database.get(classification.problem_type, {
+            "strategy_name": "General Problem Solving",
+            "overview": "Apply mathematical reasoning systematically to reach a solution.",
+            "key_principles": [
+                "Understand what the problem is asking",
+                "Plan your approach before starting",
+                "Work step by step",
+                "Check your answer"
+            ],
+            "when_to_use": "For any mathematical problem requiring systematic solution.",
+            "success_indicators": [
+                "Solution addresses the original question",
+                "All steps are mathematically valid",
+                "Answer is reasonable"
+            ]
+        })
+
+        # Enhance with problem-specific analysis
+        base_strategy.update({
+            "step_breakdown": self._analyze_solution_pattern(steps),
+            "difficulty_adaptations": self._get_difficulty_adaptations(classification),
+            "estimated_time": self._estimate_solution_time(classification, len(steps)),
+            "required_tools": self._identify_required_tools(classification)
+        })
+
+        return base_strategy
+
+    def _analyze_solution_pattern(self, steps: List[StepExplanation]) -> List[Dict[str, str]]:
+        """Analyze the pattern of solution steps."""
+        patterns = []
+
+        for i, step in enumerate(steps):
+            step_desc = step.description.lower()
+
+            if "identify" in step_desc or i == 0:
+                patterns.append({
+                    "phase": "Problem Analysis",
+                    "description": "Understanding what we're given and what we need to find"
+                })
+            elif "substitute" in step_desc:
+                patterns.append({
+                    "phase": "Substitution",
+                    "description": "Replacing variables or expressions with known values"
+                })
+            elif "solve" in step_desc:
+                patterns.append({
+                    "phase": "Solution Finding",
+                    "description": "Applying mathematical operations to isolate the unknown"
+                })
+            elif "simplify" in step_desc:
+                patterns.append({
+                    "phase": "Simplification",
+                    "description": "Reducing the expression to its simplest form"
+                })
+            elif "verify" in step_desc or "check" in step_desc:
+                patterns.append({
+                    "phase": "Verification",
+                    "description": "Confirming our solution is correct"
+                })
+            else:
+                patterns.append({
+                    "phase": "Mathematical Operation",
+                    "description": "Applying mathematical rules and procedures"
+                })
+
+        return patterns
+
+    def _get_difficulty_adaptations(self, classification: ClassificationResult) -> List[str]:
+        """Get difficulty-specific adaptations for the strategy."""
+        difficulty_map = {
+            DifficultyLevel.ELEMENTARY: [
+                "Use more visual aids and diagrams",
+                "Break down each step into smaller sub-steps",
+                "Provide more examples and practice problems",
+                "Use concrete numbers before introducing variables"
+            ],
+            DifficultyLevel.HIGH_SCHOOL: [
+                "Connect to previously learned concepts",
+                "Show alternative solution methods",
+                "Explain why each step is necessary"
+            ],
+            DifficultyLevel.UNDERGRADUATE: [
+                "Include theoretical background",
+                "Discuss when the method does/doesn't apply",
+                "Connect to broader mathematical themes"
+            ],
+            DifficultyLevel.GRADUATE: [
+                "Emphasize rigor and proof techniques",
+                "Discuss generalizations and extensions",
+                "Consider edge cases and assumptions"
+            ],
+            DifficultyLevel.RESEARCH: [
+                "Provide complete theoretical framework",
+                "Discuss current research connections",
+                "Consider multiple proof approaches"
+            ]
+        }
+
+        return difficulty_map.get(classification.difficulty, [])
+
+    def _estimate_solution_time(self, classification: ClassificationResult, num_steps: int) -> str:
+        base_time = num_steps * 2  # 2 minutes per step as baseline
+
+        difficulty_multipliers = {
+            DifficultyLevel.ELEMENTARY: 1.5,
+            DifficultyLevel.HIGH_SCHOOL: 1.0,
+            DifficultyLevel.UNDERGRADUATE: 1.2,
+            DifficultyLevel.GRADUATE: 1.8,
+            DifficultyLevel.RESEARCH: 3.0
+        }
+
+        multiplier = difficulty_multipliers.get(classification.difficulty, 1.0)
+        estimated_minutes = int(base_time * multiplier)
+
+        if estimated_minutes < 5:
+            return "2-5 minutes"
+        elif estimated_minutes < 15:
+            return "5-15 minutes"
+        elif estimated_minutes < 30:
+            return "15-30 minutes"
+        else:
+            return "30+ minutes"
+
+    def _identify_required_tools(self, classification: ClassificationResult) -> List[str]:
+        tools = ["Paper and pencil"]
+
+        if classification.difficulty in [DifficultyLevel.UNDERGRADUATE, DifficultyLevel.GRADUATE]:
+            tools.append("Scientific calculator")
+
+        if MathSubject.CALCULUS in classification.subjects:
+            tools.append("Graphing capability (optional)")
+
+        if classification.problem_type == ProblemType.WORD_PROBLEM:
+            tools.append("Unit conversion references (if needed)")
+
+        if any(subj in classification.subjects for subj in [MathSubject.STATISTICS, MathSubject.PROBABILITY]):
+            tools.append("Statistical tables or calculator")
+
+        return tools
+
+    def _generate_voice_explanation(self, problem: str, steps: List[StepExplanation],
+                                    style: ExplanationStyle) -> VoiceExplanation:
+
+        voice_parts = [
+            f"Let's solve this problem step by step. The problem is: {self._make_math_speakable(problem)}"
+        ]
+
+        for step in steps:
+            step_text = f"Step {step.step_num}: {step.description}. "
+            step_text += f"We get: {self._make_math_speakable(step.expression)}. "
+            if step.reasoning:
+                step_text += f"This works because {step.reasoning.lower()}. "
+            voice_parts.append(step_text)
+
+        voice_parts.append("And that gives us our final answer!")
+
