@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import logging
 from sympy import parse_expr, Derivative, sympify, SympifyError, Symbol
 
-# from src.utils.nlp_utils import MathNLPProcessor  # Commented out since not provided
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
