@@ -55,4 +55,37 @@ enum, dataclasses for structured output
 
 sympy for symbolic math parsing and validation
 
-Logging for debugging and traceability
+Logging for debugging and traceability📈 Current Model Performance & Limitations
+
+Accurate classification for most common math problems with confidence scores.
+
+Still relies heavily on regex heuristics; deeper semantic parsing planned.
+
+Ongoing work to integrate NLP models for better context understanding.
+
+Solver integration pending.
+
+🛠️ Future Work
+
+Integrate NLP pipelines for parsing complex word problems.
+
+Build symbolic solvers for classified problems using SymPy.
+
+Add interactive web interface with Streamlit or Flask.
+
+Expand dataset with diverse math problems and annotated classifications.
+
+Implement unit and integration tests.
+
+Improve classification confidence metrics and feedback loops.
+
+📂 Dataset
+
+Currently tested with synthetic and publicly available math problems.
+Dataset curation ongoing.
+
+👤 Author
+
+Anas Shaw
+Email: Anasshaw@umich.edu
+GitHub: github.com/Shawaqfeh715
