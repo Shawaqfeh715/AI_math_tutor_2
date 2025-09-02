@@ -1,8 +1,8 @@
-# 🧮 AI Math Tutor & Solver
+#  AI Math Tutor & Solver
 
 A comprehensive AI-powered math tutoring system that understands, classifies, solves, and explains mathematical problems written in natural language.
 
-## 🚀 Features
+##  Features
 
 - **Smart Problem Classification**: Automatically detects math subjects, problem types, and difficulty levels
 - **Step-by-Step Solutions**: Provides detailed solutions with explanations for each step
@@ -14,7 +14,7 @@ A comprehensive AI-powered math tutoring system that understands, classifies, so
 - **RESTful API**: Full backend API for integration with other applications
 - **Modern Web Interface**: Beautiful Streamlit frontend for easy interaction
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 src/
@@ -58,7 +58,7 @@ src/
    pip install -r requirements.txt
    ```
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Option 1: Web Interface (Recommended)
 
@@ -233,14 +233,14 @@ This will test:
 - Standard deviation
 - Probability problems
 
-## 🎯 Explanation Styles
+## Explanation Styles
 
 - **Beginner**: Detailed explanations with extra context and examples
 - **Intermediate**: Balanced explanations with key concepts
 - **Advanced**: Concise explanations for experienced learners
 - **Conversational**: Friendly, engaging explanations
 
-## 🔧 Configuration
+##  Configuration
 
 The system automatically detects:
 - Mathematical subjects
@@ -249,7 +249,7 @@ The system automatically detects:
 - Difficulty levels
 - Confidence scores
 
-## 🚧 Limitations & Future Work
+## Limitations & Future Work
 
 ### Current Limitations
 - Limited to basic mathematical operations
@@ -264,7 +264,7 @@ The system automatically detects:
 - Mobile app development
 - Multi-language support
 
-## 🤝 Contributing
+##  Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -272,18 +272,18 @@ The system automatically detects:
 4. Add tests for new functionality
 5. Submit a pull request
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - SymPy for symbolic mathematics
 - Flask for the web framework
 - Streamlit for the user interface
 - Mathematical education community for problem examples
 
-## 📞 Support
+##  Support
 
 For questions, issues, or contributions, please open an issue on GitHub or contact the development team.
 
