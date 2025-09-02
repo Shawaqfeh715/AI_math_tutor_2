@@ -20,7 +20,7 @@ except ImportError:
         reasoning: str
         latex_expr: Optional[str] = None
 
-from .classifier import ClassificationResult, ProblemType, MathSubject, DifficultyLevel
+from __main__.classifier import ClassificationResult, ProblemType, MathSubject, DifficultyLevel
 
 logging.basicConfig(
     level=logging.INFO,
@@ -999,12 +999,11 @@ class MathExplainer:
         elif classification.problem_type == ProblemType.WORD_PROBLEM:
             problems.extend(self._generate_word_problems(classification))
 
-        return problems[:5]  # Limit to 5 practice problems
+        return problems[:5]
 
     def _generate_fallback_explanation(self,
                                        problem: str,
                                        classification: ClassificationResult) -> Dict[str, Any]:
-        """Generate a basic fallback explanation when main processing fails."""
         return {
             "problem": problem,
             "classification": classification.to_dict() if hasattr(classification, 'to_dict') else {},
@@ -1018,9 +1017,7 @@ class MathExplainer:
             "error_occurred": True
         }
 
-    # Database building methods
     def _build_concept_database(self) -> Dict[str, ConceptExplanation]:
-        """Build comprehensive concept database."""
         database = {}
 
         # Algebra concepts
@@ -1375,11 +1372,9 @@ class MathExplainer:
         )
 
     def _simplify_definition(self, definition: str) -> str:
-        """Simplify definition for beginners."""
-        # Remove complex terminology and use simpler language
+
         simplified = definition.lower()
 
-        # Replace complex terms with simpler ones
         replacements = {
             "instantaneous rate of change": "how fast something is changing",
             "antiderivative": "reverse of derivative",
@@ -1393,9 +1388,7 @@ class MathExplainer:
         return simplified.capitalize()
 
 
-# Additional utility functions for the explainer
 def create_explanation_summary(explanation_result: Dict[str, Any]) -> str:
-    """Create a concise summary of the explanation."""
     problem = explanation_result.get('problem', 'Mathematical problem')
     classification = explanation_result.get('classification', {})
     steps = explanation_result.get('step_explanations', [])

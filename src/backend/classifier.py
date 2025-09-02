@@ -5,8 +5,6 @@ from dataclasses import dataclass
 import logging
 from sympy import parse_expr, Derivative, sympify, SympifyError, Symbol
 
-# from src.utils.nlp_utils import MathNLPProcessor  # Commented out since not provided
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,7 @@ class ClassificationResult:
     functions: Set[str]
     difficulty: DifficultyLevel
     metadata: Dict
-    confidence: float = 0.0  # Confidence score for the classification
+    confidence: float = 0.0
 
     def to_dict(self):
         return {
@@ -70,7 +68,6 @@ class ClassificationResult:
 
 class MathClassifier:
     def __init__(self):
-        # self.nlp = MathNLPProcessor()  # Commented out since not provided
         self.setup_patterns()
         self.functions = {'sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan',
                           'sinh', 'cosh', 'tanh', 'log', 'ln', 'exp', 'sqrt', 'abs'}
@@ -78,19 +75,18 @@ class MathClassifier:
         logger.info("Enhanced MathClassifier initialized")
 
     def setup_patterns(self):
-        """Initialize comprehensive pattern matching for different math subjects and problem types"""
         self.subject_patterns = {
             MathSubject.ALGEBRA: [
-                re.compile(r'\b[a-z]\s*=\s*[^=]', re.IGNORECASE),  # Variable assignments
+                re.compile(r'\b[a-z]\s*=\s*[^=]', re.IGNORECASE),
                 re.compile(r'\b(solve|equation|linear|quadratic)\b', re.IGNORECASE),
-                re.compile(r'[a-z]\^?\d+|\d*[a-z]', re.IGNORECASE),  # Algebraic terms
+                re.compile(r'[a-z]\^?\d+|\d*[a-z]', re.IGNORECASE),
                 re.compile(r'\b(factor|expand|simplify)\b', re.IGNORECASE)
             ],
             MathSubject.CALCULUS: [
                 re.compile(r'\b(derivative|differentiate|d/dx|d/dy)\b', re.IGNORECASE),
                 re.compile(r'\b(integral|integrate|∫)\b', re.IGNORECASE),
                 re.compile(r'\b(limit|lim)\b', re.IGNORECASE),
-                re.compile(r"[f|g|h]'|f''", re.IGNORECASE),  # Function notation
+                re.compile(r"[f|g|h]'|f''", re.IGNORECASE),
                 re.compile(r'\b(chain\s+rule|product\s+rule|quotient\s+rule)\b', re.IGNORECASE)
             ],
             MathSubject.GEOMETRY: [
@@ -113,7 +109,7 @@ class MathClassifier:
 
         self.problem_type_patterns = {
             ProblemType.EQUATION: [
-                re.compile(r'.+=.+'),  # Contains equals sign
+                re.compile(r'.+=.+'),
                 re.compile(r'\b(solve\s+for|find\s+[a-z])\b', re.IGNORECASE)
             ],
             ProblemType.DERIVATIVE: [
@@ -129,7 +125,7 @@ class MathClassifier:
                 re.compile(r'\b(greater\s+than|less\s+than|at\s+least|at\s+most)\b', re.IGNORECASE)
             ],
             ProblemType.SYSTEM_OF_EQUATIONS: [
-                re.compile(r'(\n.*=|\r.*=.*\r.*=)', re.MULTILINE),  # Multiple equations
+                re.compile(r'(\n.*=|\r.*=.*\r.*=)', re.MULTILINE),
                 re.compile(r'\b(system\s+of\s+equations)\b', re.IGNORECASE)
             ],
             ProblemType.FACTORING: [
@@ -140,19 +136,17 @@ class MathClassifier:
             ],
             ProblemType.WORD_PROBLEM: [
                 re.compile(r'\b(find|calculate|determine|how\s+much|how\s+many)\b', re.IGNORECASE),
-                re.compile(r'.{50,}')  # Longer text likely indicates word problem
+                re.compile(r'.{50,}')
             ]
         }
 
     def classify(self, text: str) -> ClassificationResult:
-        """Enhanced classification with confidence scoring"""
         try:
             if not isinstance(text, str):
                 raise TypeError("Input must be a string")
             if not text.strip():
                 raise ValueError("Input cannot be empty")
 
-            # Use fallback processing if NLP processor is not available
             processed_result = self._basic_text_processing(text)
 
             subjects = self._detect_subjects_enhanced(text)
@@ -188,8 +182,6 @@ class MathClassifier:
             return self._fallback_classification(text)
 
     def _basic_text_processing(self, text: str) -> Dict:
-        """Basic text processing when NLP processor is not available"""
-        # Extract mathematical expressions
         math_expressions = re.findall(r'[a-zA-Z0-9+\-*/^()=<>≤≥√∫]+', text)
 
         return {
@@ -199,7 +191,6 @@ class MathClassifier:
         }
 
     def _detect_subjects_enhanced(self, text: str) -> Set[MathSubject]:
-        """Enhanced subject detection with weighted scoring"""
         subject_scores = {}
 
         for subject, patterns in self.subject_patterns.items():
@@ -209,11 +200,9 @@ class MathClassifier:
                 score += matches
             subject_scores[subject] = score
 
-        # Additional context-based detection
         if any(func in text.lower() for func in ['sin', 'cos', 'tan']):
             subject_scores[MathSubject.TRIGONOMETRY] = subject_scores.get(MathSubject.TRIGONOMETRY, 0) + 2
 
-        # Select subjects with score > 0, or default to Algebra
         detected_subjects = {subject for subject, score in subject_scores.items() if score > 0}
 
         if not detected_subjects:
@@ -222,7 +211,6 @@ class MathClassifier:
         return detected_subjects
 
     def _detect_problem_type_enhanced(self, text: str) -> ProblemType:
-        """Enhanced problem type detection with priority ordering"""
         type_scores = {}
 
         for prob_type, patterns in self.problem_type_patterns.items():
@@ -234,7 +222,6 @@ class MathClassifier:
                 type_scores[prob_type] = score
 
         if not type_scores:
-            # Default logic based on text characteristics
             if len(text.split()) > 10:
                 return ProblemType.WORD_PROBLEM
             elif '=' in text:
@@ -242,31 +229,24 @@ class MathClassifier:
             else:
                 return ProblemType.SIMPLIFICATION
 
-        # Return the problem type with the highest score
         return max(type_scores, key=type_scores.get)
 
     def _extract_variables(self, text: str) -> Set[str]:
-        """Extract mathematical variables from text"""
-        # Look for single letters that appear to be variables
+
         variable_pattern = re.compile(r'\b([a-z])\b(?!\s*[a-z])', re.IGNORECASE)
         potential_vars = set(variable_pattern.findall(text.lower()))
 
-        # Filter out common English words that might be single letters
-        common_words = {'a', 'i', 'o'}  # Articles and pronouns
+        common_words = {'a', 'i', 'o'}
         variables = potential_vars - common_words
 
-        # Add variables from function notation like f(x), g(y)
         func_vars = re.findall(r'[fgh]\(([a-z])\)', text.lower())
         variables.update(func_vars)
 
-        # If no variables found, default to 'x'
         if not variables:
             variables.add('x')
 
-        return variables & self.variables  # Only return known variable names
-
+        return variables & self.variables
     def _extract_functions(self, text: str) -> Set[str]:
-        """Extract mathematical functions from text"""
         found_functions = set()
         text_lower = text.lower()
 
@@ -274,7 +254,6 @@ class MathClassifier:
             if func in text_lower:
                 found_functions.add(func)
 
-        # Look for function notation f(x), g(x), etc.
         func_notation = re.findall(r'\b([fgh])\s*\(', text_lower)
         found_functions.update(func_notation)
 
@@ -282,10 +261,8 @@ class MathClassifier:
 
     def _estimate_difficulty_enhanced(self, text: str, variables: Set[str],
                                       functions: Set[str], subjects: Set[MathSubject]) -> DifficultyLevel:
-        """Enhanced difficulty estimation"""
         difficulty_score = 0
 
-        # Base complexity factors
         difficulty_score += len(variables)
         difficulty_score += len(functions) * 2
         difficulty_score += len(subjects)
@@ -401,6 +378,7 @@ class MathClassifier:
             subjects=subjects,
             problem_type=problem_type,
             variables= variables if variables else {'x'},
+            functions=functions if functions else set(),
             difficulty=DifficultyLevel.HIGH_SCHOOL,
             confidence=0.3,
             metadata={

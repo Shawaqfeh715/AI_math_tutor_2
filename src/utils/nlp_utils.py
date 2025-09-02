@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 try:
-    nlp = spacy.load("en_core_web_sm", disable=['ner'])  # Keep parser for better analysis
+    nlp = spacy.load("en_core_web_sm", disable=['ner'])
 except OSError:
     logger.warning("spaCy model not found. Install with: python -m spacy download en_core_web_sm")
     nlp = None
@@ -265,7 +265,7 @@ class MathNLPProcessor:
                 parsing_strategies = [
                     lambda x: parse_expr(x, transformations='all', evaluate=False),
                     lambda x: sympify(x, evaluate=False),
-                    lambda x: parse_expr(x, evaluate=False),  # Without transformations
+                    lambda x: parse_expr(x, evaluate=False),
                 ]
 
                 for strategy in parsing_strategies:

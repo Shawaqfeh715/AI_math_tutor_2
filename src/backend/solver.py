@@ -17,7 +17,13 @@ class StepExplanation:
         self.step_num = step_num
         self.description = description
         self.expression = expression
-        self.latex_expr = latex_expr or latex(sympify(expression) if expression else "")
+        try:
+            if expression and not expression.startswith('Variables:') and not expression.startswith('Variable(s) to solve for:'):
+                self.latex_expr = latex_expr or latex(sympify(expression))
+            else:
+                self.latex_expr = latex_expr or ""
+        except:
+            self.latex_expr = latex_expr or ""
         self.reasoning = reasoning
 
     def to_dict(self):
@@ -36,7 +42,6 @@ class MathSolver:
         self.common_functions = {'sin', 'cos', 'tan', 'log', 'ln', 'exp', 'sqrt'}
         logger.info("MathSolver initialized")
 
-    @lru_cache(maxsize=64)
     def solve_problem(self, classification: ClassificationResult,
                       parsed_expression: str) -> Dict[str, Any]:
 
@@ -72,7 +77,17 @@ class MathSolver:
 
         steps = []
         try:
-            expr_sym = sympify(expr, evaluate=False)
+            clean_expr = self._extract_math_expression(expr)
+            logger.info(f"Extracted expression: '{clean_expr}' from '{expr}'")
+            
+            if '=' in clean_expr:
+                left, right = clean_expr.split('=')
+                left_expr = sympify(left.strip(), evaluate=False)
+                right_expr = sympify(right.strip(), evaluate=False)
+                equation = Eq(left_expr, right_expr)
+                expr_sym = left_expr - right_expr
+            else:
+                expr_sym = sympify(clean_expr, evaluate=False)
             steps.append(StepExplanation(
                 1, "Parse the equation", str(expr_sym),
                 reasoning="First, we identify the mathematical expression and parse it."
@@ -82,12 +97,12 @@ class MathSolver:
             var_symbols = [Symbol(var) for var in variables]
             steps.append(StepExplanation(
                 2, f"Identify variable(s): {', '.join(variables)}",
-                f"Variable(s) to solve for: {', '.join(variables)}",
+                f"Variables: {', '.join(variables)}",
                 reasoning=f"We need to solve for the variable(s): {', '.join(variables)}"
             ))
 
-            if '=' in expr:
-                left, right = expr.split('=')
+            if '=' in clean_expr:
+                left, right = clean_expr.split('=')
                 left_sym = sympify(left.strip(), evaluate=False)
                 right_sym = sympify(right.strip(), evaluate=False)
                 equation = Eq(left_sym, right_sym)
@@ -123,7 +138,7 @@ class MathSolver:
                 "solution": solutions,
                 "solution_type": "equation",
                 "variables": variables,
-                "steps": [step.to_dict() for step in steps],
+                "steps": steps,
                 "latex_steps": [step.latex_expr for step in steps]
             }
 
@@ -136,7 +151,13 @@ class MathSolver:
 
         steps = []
         try:
-            expr_sym = sympify(expr, evaluate=False)
+            clean_expr = self._extract_math_expression(expr)
+            
+            if '=' in clean_expr:
+                left, right = clean_expr.split('=')
+                expr_sym = sympify(left.strip(), evaluate=False)
+            else:
+                expr_sym = sympify(clean_expr, evaluate=False)
             steps.append(StepExplanation(
                 1, "Parse the function", str(expr_sym),
                 reasoning="First, we identify the function to differentiate."
@@ -171,7 +192,7 @@ class MathSolver:
                 "solution": str(final_result),
                 "solution_type": "derivative",
                 "variables": variables,
-                "steps": [step.to_dict() for step in steps],
+                "steps": steps,
                 "latex_steps": [step.latex_expr for step in steps]
             }
 
@@ -199,7 +220,7 @@ class MathSolver:
                     reasoning="This word problem type is not yet supported."
                 ))
                 return {"error": "Unsupported word problem type", "solution": None,
-                        "steps": [step.to_dict() for step in steps]}
+                        "steps": steps}
 
         except Exception as e:
             logger.error(f"Word problem error: {str(e)}")
@@ -232,14 +253,14 @@ class MathSolver:
                     "solution": str(area),
                     "solution_type": "area",
                     "variables": set(),
-                    "steps": [step.to_dict() for step in steps]
+                    "steps": steps
                 }
 
         steps.append(StepExplanation(
             2, "Geometry problem not recognized", "This geometry problem type is not supported",
             reasoning="Only basic circle area problems are currently supported."
         ))
-        return {"error": "Unsupported geometry problem", "solution": None, "steps": [step.to_dict() for step in steps]}
+        return {"error": "Unsupported geometry problem", "solution": None, "steps": steps}
 
     def _solve_algebra_word_problem(self, expr: str, steps: List[StepExplanation]) -> Dict[str, Any]:
         steps.append(StepExplanation(
@@ -248,7 +269,7 @@ class MathSolver:
         ))
 
         return {"error": "Algebra word problems not fully implemented", "solution": None,
-                "steps": [step.to_dict() for step in steps]}
+                "steps": steps}
 
     def _format_solutions(self, solutions: List[Dict]) -> str:
         if not solutions:
@@ -269,7 +290,6 @@ class MathSolver:
         if "error" in result:
             return result
 
-        # Add educational context
         result["educational_notes"] = self._get_educational_notes(classification)
         result["common_mistakes"] = self._get_common_mistakes(classification.problem_type)
         result["related_concepts"] = self._get_related_concepts(classification)
@@ -277,7 +297,6 @@ class MathSolver:
         return result
 
     def _get_educational_notes(self, classification: ClassificationResult) -> List[str]:
-        """Provide educational context based on problem type"""
         notes = []
 
         if classification.problem_type == ProblemType.EQUATION:
@@ -309,6 +328,37 @@ class MathSolver:
             ]
         }
         return mistakes.get(problem_type, [])
+
+    def _extract_math_expression(self, text: str) -> str:
+        import re
+        
+        text = text.replace('²', '^2').replace('³', '^3').replace('°', '')
+        
+        if '=' in text:
+            parts = text.split('=')
+            if len(parts) == 2:
+                left = parts[0].strip()
+                right = parts[1].strip()
+                
+                left_math = re.findall(r'[a-zA-Z0-9+\-*/^()]+', left)
+                right_math = re.findall(r'[a-zA-Z0-9+\-*/^()]+', right)
+                
+                if left_math and right_math:
+                    left_expr = ' '.join(left_math)
+                    right_expr = ' '.join(right_math)
+                    left_expr = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', left_expr)
+                    right_expr = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', right_expr)
+                    return f"{left_expr} = {right_expr}"
+        
+        math_expr = re.findall(r'[a-zA-Z0-9+\-*/^()]+', text)
+        if math_expr:
+            result = ' '.join(math_expr)
+            result = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', result)
+            result = re.sub(r'([a-zA-Z])(\d)', r'\1^\2', result)
+            result = re.sub(r'([a-zA-Z])([a-zA-Z])', r'\1*\2', result)
+            return result
+        
+        return text
 
     def _get_related_concepts(self, classification: ClassificationResult) -> List[str]:
         concepts = []

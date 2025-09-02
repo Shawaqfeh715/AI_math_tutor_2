@@ -1,1 +1,128 @@
-
+{
+  "algebra_problems": [
+    {
+      "problem": "Solve for x: 2x + 3 = 7",
+      "expected_type": "Equation",
+      "expected_subject": "Algebra",
+      "difficulty": "Elementary"
+    },
+    {
+      "problem": "Solve the quadratic equation: x² - 5x + 6 = 0",
+      "expected_type": "Equation",
+      "expected_subject": "Algebra",
+      "difficulty": "High School"
+    },
+    {
+      "problem": "Factor the expression: x² - 9",
+      "expected_type": "Factoring",
+      "expected_subject": "Algebra",
+      "difficulty": "High School"
+    },
+    {
+      "problem": "Simplify: (x + 2)(x - 3) + 2x",
+      "expected_type": "Simplification",
+      "expected_subject": "Algebra",
+      "difficulty": "High School"
+    }
+  ],
+  "calculus_problems": [
+    {
+      "problem": "Find the derivative of f(x) = x³ + 2x² - 5x + 1",
+      "expected_type": "Derivative",
+      "expected_subject": "Calculus",
+      "difficulty": "Undergraduate"
+    },
+    {
+      "problem": "Find d/dx(sin(x²))",
+      "expected_type": "Derivative",
+      "expected_subject": "Calculus",
+      "difficulty": "Undergraduate"
+    },
+    {
+      "problem": "Calculate the integral of 2x + 3",
+      "expected_type": "Integral",
+      "expected_subject": "Calculus",
+      "difficulty": "Undergraduate"
+    },
+    {
+      "problem": "Find the limit as x approaches 0 of (sin x)/x",
+      "expected_type": "Limit",
+      "expected_subject": "Calculus",
+      "difficulty": "Undergraduate"
+    }
+  ],
+  "geometry_problems": [
+    {
+      "problem": "Find the area of a circle with radius 5 units",
+      "expected_type": "Word Problem",
+      "expected_subject": "Geometry",
+      "difficulty": "High School"
+    },
+    {
+      "problem": "Calculate the perimeter of a rectangle with length 8 and width 6",
+      "expected_type": "Word Problem",
+      "expected_subject": "Geometry",
+      "difficulty": "Elementary"
+    },
+    {
+      "problem": "Find the volume of a cylinder with radius 3 and height 10",
+      "expected_type": "Word Problem",
+      "expected_subject": "Geometry",
+      "difficulty": "High School"
+    }
+  ],
+  "trigonometry_problems": [
+    {
+      "problem": "Find sin(30°)",
+      "expected_type": "Simplification",
+      "expected_subject": "Trigonometry",
+      "difficulty": "High School"
+    },
+    {
+      "problem": "Solve: 2sin(x) = 1 for 0 ≤ x ≤ 2π",
+      "expected_type": "Equation",
+      "expected_subject": "Trigonometry",
+      "difficulty": "High School"
+    },
+    {
+      "problem": "Find the value of tan(45°)",
+      "expected_type": "Simplification",
+      "expected_subject": "Trigonometry",
+      "difficulty": "High School"
+    }
+  ],
+  "statistics_problems": [
+    {
+      "problem": "Find the mean of the numbers: 5, 8, 12, 15, 20",
+      "expected_type": "Word Problem",
+      "expected_subject": "Statistics",
+      "difficulty": "High School"
+    },
+    {
+      "problem": "Calculate the standard deviation of the dataset: 2, 4, 6, 8, 10",
+      "expected_type": "Word Problem",
+      "expected_subject": "Statistics",
+      "difficulty": "Undergraduate"
+    }
+  ],
+  "complex_problems": [
+    {
+      "problem": "Solve the system of equations: 2x + 3y = 12, x - y = 2",
+      "expected_type": "System of Equations",
+      "expected_subject": "Algebra",
+      "difficulty": "High School"
+    },
+    {
+      "problem": "Find the derivative of f(x) = e^x * ln(x) using the product rule",
+      "expected_type": "Derivative",
+      "expected_subject": "Calculus",
+      "difficulty": "Undergraduate"
+    },
+    {
+      "problem": "A train travels 300 miles in 4 hours. What is its average speed?",
+      "expected_type": "Word Problem",
+      "expected_subject": "Algebra",
+      "difficulty": "Elementary"
+    }
+  ]
+}
